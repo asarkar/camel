@@ -1,8 +1,8 @@
-package org.abhijitsarkar.router
+package org.abhijitsarkar.camel.router
 
 import com.fasterxml.jackson.module.kotlin.KotlinModule
-import org.abhijitsarkar.model.Group
-import org.abhijitsarkar.translator.JGitAgent
+import org.abhijitsarkar.camel.model.Group
+import org.abhijitsarkar.camel.translator.JGitAgent
 import org.apache.camel.Exchange
 import org.apache.camel.builder.RouteBuilder
 import org.apache.camel.model.dataformat.JsonDataFormat
@@ -22,8 +22,8 @@ class GitLabRouteBuilder(val jGitAgent: JGitAgent) : RouteBuilder() {
 
         from("direct:eventConsumerEndpoint")
                 .id("groupConsumerRoute")
-//                .marshal()
-//                .json(JsonLibrary.Jackson)
+                .marshal()
+                .json(JsonLibrary.Jackson)
                 .setHeader("Accept", constant("application/json"))
                 .setHeader("PRIVATE-TOKEN", constant("{{gitlab.privateToken}}"))
                 .setHeader(Exchange.HTTP_METHOD, constant("GET"))
@@ -35,13 +35,15 @@ class GitLabRouteBuilder(val jGitAgent: JGitAgent) : RouteBuilder() {
         from("direct:groupConsumerEndpoint")
                 .id("projectConsumerRoute")
                 .split(simple("\${body.projects}"))
-//                .split(JsonPathExpression("\$.projects[*].ssh_url_to_repo"))
                 .bean(jGitAgent, "clone")
+                .to("log:${javaClass.name}?level=DEBUG")
                 .to("{{gitlab.projectConsumerEndpoint}}")
 
         from("direct:projectConsumerEndpoint")
                 .id("updateRoute")
                 .bean(jGitAgent, "update")
+                .filter(simple("\${body.toString().trim()} != ''"))
+                .to("log:${javaClass.name}?level=DEBUG")
                 .to("{{auditingEndpoint}}")
     }
 }

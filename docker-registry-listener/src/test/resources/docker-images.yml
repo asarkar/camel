@@ -1,0 +1,2 @@
+mysql: "library/mysql:1.0.0"
+couchbase: "library/couchbase:1.0.0"

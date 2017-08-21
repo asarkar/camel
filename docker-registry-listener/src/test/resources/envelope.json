@@ -1,0 +1,16 @@
+{
+  "events": [
+    {
+      "id": "test",
+      "timestamp": "whatever",
+      "action": "push",
+      "target": {
+        "repository": "library/mysql",
+        "tag": "5.0.0"
+      },
+      "actor": {
+        "name": "whatever"
+      }
+    }
+  ]
+}

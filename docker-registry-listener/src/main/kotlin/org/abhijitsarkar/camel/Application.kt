@@ -1,14 +1,30 @@
-package org.abhijitsarkar
+package org.abhijitsarkar.camel
 
-import org.springframework.boot.SpringApplication
+import com.mongodb.MongoClient
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.SpringBootApplication
+import org.springframework.boot.builder.SpringApplicationBuilder
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Profile
 
 /**
  * @author Abhijit Sarkar
  */
 @SpringBootApplication
-class Application
+class Application {
+    companion object {
+        val DOCKER_REGISTRY_EVENTS_HEADER = "DockerRegistryEvents"
+        val DOCKER_IMAGES_FILENAME = "docker-images.yml"
+    }
+
+    @Bean
+    @Profile("!it")
+    fun mongoBean(@Value("\${mongodb.host:localhost}") host: String, @Value("\${mongodb.port:27017}") port: Int) =
+            MongoClient(host, port)
+}
 
 fun main(args: Array<String>) {
-    SpringApplication.run(Application::class.java, *args)
+    SpringApplicationBuilder(Application::class.java)
+            .web(false)
+            .run(*args)
 }

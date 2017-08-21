@@ -1,0 +1,9 @@
+logging.level.org.abhijitsarkar: DEBUG
+gitlab:
+  baseUri: gitlab.com
+  groupName: abhijitsarkar.org
+  groupConsumerEndpoint: "direct:groupConsumerEndpoint"
+  projectConsumerEndpoint: "direct:projectConsumerEndpoint"
+  privateToken: U9ceyiYvxKVafHEdeAvD
+eventConsumerEndpoint: "direct:eventConsumerEndpoint, mongodb:mongoBean?database=listener&collection=events&operation=insert"
+auditingEndpoint: "mongodb:mongoBean?database=listener&collection=audits&operation=insert"

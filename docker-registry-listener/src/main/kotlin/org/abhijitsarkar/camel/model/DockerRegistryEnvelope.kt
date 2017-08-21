@@ -1,4 +1,4 @@
-package org.abhijitsarkar.model
+package org.abhijitsarkar.camel.model
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 

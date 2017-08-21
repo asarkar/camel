@@ -1,7 +1,8 @@
-package org.abhijitsarkar.router
+package org.abhijitsarkar.camel.router
 
-import org.abhijitsarkar.model.Group
-import org.abhijitsarkar.model.Project
+import org.abhijitsarkar.camel.Application
+import org.abhijitsarkar.camel.model.Group
+import org.abhijitsarkar.camel.model.Project
 import org.apache.camel.EndpointInject
 import org.apache.camel.ProducerTemplate
 import org.apache.camel.component.mock.MockEndpoint
@@ -10,9 +11,7 @@ import org.apache.camel.test.spring.DisableJmx
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.ComponentScan
 import org.springframework.test.context.ActiveProfiles
 
 
@@ -20,14 +19,11 @@ import org.springframework.test.context.ActiveProfiles
  * @author Abhijit Sarkar
  */
 @RunWith(CamelSpringBootRunner::class)
-@SpringBootTest(classes = arrayOf(GitLabRouteBuilderTest::class),
+@SpringBootTest(classes = arrayOf(Application::class),
         webEnvironment = SpringBootTest.WebEnvironment.NONE
 )
 @ActiveProfiles("it")
 @DisableJmx
-// needed because we don't have a SpringBootApplication
-@EnableAutoConfiguration
-@ComponentScan(basePackageClasses = arrayOf(GitLabRouteBuilder::class))
 class GitLabRouteBuilderTest {
     @EndpointInject(uri = "mock:groupConsumerEndpoint")
     lateinit var groupConsumerEndpoint: MockEndpoint
@@ -41,7 +37,7 @@ class GitLabRouteBuilderTest {
     @Test
     fun testGroupConsumerRoute() {
         groupConsumerEndpoint.expectedMessageCount(1)
-        producerTemplate.sendBody("direct:eventListenerEndpoint", "whatever")
+        producerTemplate.sendBody("direct:eventConsumerEndpoint", "whatever")
         groupConsumerEndpoint.assertIsSatisfied(2000L)
     }
 

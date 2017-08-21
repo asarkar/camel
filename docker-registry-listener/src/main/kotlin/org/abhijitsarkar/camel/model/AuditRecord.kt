@@ -1,4 +1,4 @@
-package org.abhijitsarkar.model
+package org.abhijitsarkar.camel.model
 
 /**
  * @author Abhijit Sarkar

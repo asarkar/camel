@@ -1,0 +1,8 @@
+gitlab:
+  baseUri: gitlab.com
+  groupName: abhijitsarkar.org
+  groupConsumerEndpoint: "mock:groupConsumerEndpoint"
+  projectConsumerEndpoint: "mock:projectConsumerEndpoint"
+  privateToken: U9ceyiYvxKVafHEdeAvD
+eventConsumerEndpoint: "mock:eventConsumerEndpoint"
+auditingEndpoint: "mock:auditingEndpoint"
