@@ -9,11 +9,12 @@ import java.io.File
  */
 fun File.updateIfNecessary(events: List<Event>): Pair<Map<String, List<String>>, Map<String, String>> =
         this.bufferedReader().use {
+            @Suppress("UNCHECKED_CAST")
             val dockerImages = Yaml().load(it) as MutableMap<String, String>
-            var keysUpdated = mutableMapOf<String, List<String>>()
+            var imagesUpdated = mutableMapOf<String, List<String>>()
 
-            dockerImages.keys.forEach { k ->
-                val v = dockerImages[k]
+            dockerImages.keys.forEach { image ->
+                val v = dockerImages[image]
                 val groups = "^(.+)(?<=/)(.+):(.+)\$".toRegex()
                         .matchEntire(v as CharSequence)
                         ?.groupValues
@@ -26,12 +27,12 @@ fun File.updateIfNecessary(events: List<Event>): Pair<Map<String, List<String>>,
                             .find { e -> e.target.repository.endsWith(repository) && e.target.tag != tag }
 
                     if (event != null) {
-                        dockerImages[k] = "${groups[1]}${groups[2]}:${event.target.tag}"
-                        keysUpdated.merge(event.id, listOf(k), { k1, k2 -> k1 + k2 })
+                        dockerImages[image] = "${groups[1]}${groups[2]}:${event.target.tag}"
+                        imagesUpdated.merge(event.id, listOf(image), { k1, k2 -> k1 + k2 })
                     }
                 }
             }
 
             // no first-class support for mutable to immutable map
-            keysUpdated.to(dockerImages)
+            imagesUpdated.to(dockerImages)
         }

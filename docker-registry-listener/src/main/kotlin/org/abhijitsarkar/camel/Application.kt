@@ -13,8 +13,8 @@ import org.springframework.context.annotation.Profile
 @SpringBootApplication
 class Application {
     companion object {
-        val DOCKER_REGISTRY_EVENTS_HEADER = "DockerRegistryEvents"
-        val DOCKER_IMAGES_FILENAME = "docker-images.yml"
+        const val DOCKER_REGISTRY_EVENTS_HEADER = "DockerRegistryEvents"
+        const val DOCKER_IMAGES_FILENAME = "docker-images.yml"
     }
 
     @Bean

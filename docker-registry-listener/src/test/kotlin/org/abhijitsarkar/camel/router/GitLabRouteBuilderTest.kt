@@ -3,8 +3,10 @@ package org.abhijitsarkar.camel.router
 import org.abhijitsarkar.camel.Application
 import org.abhijitsarkar.camel.model.Group
 import org.abhijitsarkar.camel.model.Project
+import org.apache.camel.CamelContext
 import org.apache.camel.EndpointInject
 import org.apache.camel.ProducerTemplate
+import org.apache.camel.builder.NotifyBuilder
 import org.apache.camel.component.mock.MockEndpoint
 import org.apache.camel.test.spring.CamelSpringBootRunner
 import org.apache.camel.test.spring.DisableJmx
@@ -13,6 +15,7 @@ import org.junit.runner.RunWith
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.ActiveProfiles
+import java.util.concurrent.TimeUnit
 
 
 /**
@@ -34,11 +37,22 @@ class GitLabRouteBuilderTest {
     @Autowired
     lateinit var producerTemplate: ProducerTemplate
 
+    @Autowired
+    lateinit var context: CamelContext
+
     @Test
     fun testGroupConsumerRoute() {
+        val notifyBuilder = NotifyBuilder(context)
+                .wereSentTo(groupConsumerEndpoint.endpointUri)
+                .whenDone(1)
+                .create()
         groupConsumerEndpoint.expectedMessageCount(1)
-        producerTemplate.sendBody("direct:eventConsumerEndpoint", "whatever")
-        groupConsumerEndpoint.assertIsSatisfied(2000L)
+
+        producerTemplate.sendBody("seda:eventConsumerEndpoint", "whatever")
+
+        val done = notifyBuilder.matches(5, TimeUnit.SECONDS)
+        assert(done, { "Should be done." })
+        groupConsumerEndpoint.assertIsSatisfied(5000L)
     }
 
     @Test

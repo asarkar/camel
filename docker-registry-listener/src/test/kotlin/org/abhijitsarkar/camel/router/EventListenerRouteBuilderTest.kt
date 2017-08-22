@@ -14,6 +14,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.client.TestRestTemplate
+import org.springframework.http.HttpEntity
+import org.springframework.http.HttpMethod
+import org.springframework.http.HttpStatus
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.web.client.RestTemplate
 
@@ -55,9 +58,20 @@ class EventListenerRouteBuilderTest {
                             List::class.java) as List<Event>
                     events?.first()?.id == "1"
                 })
+            } else {
+                eventConsumerEndpoint.expectedMessageCount(messageCount)
             }
 
-            restTemplate.postForObject("http://localhost:8080/events", envelope, String::class.java)
+            val requestEntity = HttpEntity<Envelope>(envelope, null)
+            val postResponse = restTemplate.exchange(
+                    "http://localhost:8080/events",
+                    HttpMethod.POST,
+                    requestEntity,
+                    String::class.java
+            )
+            assert(postResponse.body == """["1"]""", { "Expected body to contain event ids." })
+            assert(postResponse.statusCode == HttpStatus.ACCEPTED, { "Expected status code ACCEPTED." })
+
             eventConsumerEndpoint.assertIsSatisfied(2000L)
             eventConsumerEndpoint.reset()
         }

@@ -6,7 +6,7 @@
       "action": "push",
       "target": {
         "repository": "library/mysql",
-        "tag": "5.0.0"
+        "tag": "2.0.0"
       },
       "actor": {
         "name": "whatever"

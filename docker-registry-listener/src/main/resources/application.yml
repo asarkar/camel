@@ -1,9 +1,46 @@
 logging.level.org.abhijitsarkar: DEBUG
+
+eventConsumerEndpoint: "seda:eventConsumerEndpoint"
+
 gitlab:
   baseUri: gitlab.com
   groupName: abhijitsarkar.org
   groupConsumerEndpoint: "direct:groupConsumerEndpoint"
   projectConsumerEndpoint: "direct:projectConsumerEndpoint"
   privateToken: U9ceyiYvxKVafHEdeAvD
-eventConsumerEndpoint: "direct:eventConsumerEndpoint, mongodb:mongoBean?database=listener&collection=events&operation=insert"
-auditingEndpoint: "mongodb:mongoBean?database=listener&collection=audits&operation=insert"
+
+mongo:
+  baseUri: "mongodb:mongoBean?database=listener"
+  insertUri: ${mongo.baseUri}&operation=insert
+eventAuditingEndpoint: ${mongo.insertUri}&collection=events
+updateAuditingEndpoint: ${mongo.insertUri}&collection=updates
+queryAuditingEndpoint: ${mongo.baseUri}&collection=events&operation=aggregate
+
+findByIdTemplate: >
+  [
+    {
+      $unwind: "$events"
+     },
+     {
+       $lookup:
+         {
+           from: "updates",
+           localField: "events.id",
+           foreignField: "eventId",
+           as: "updates"
+         }
+      },
+      {
+        $project:
+          {
+            updates: 1,
+            event: "$events"
+          }
+      },
+      {
+        $match:
+          {
+            "event.id": "{eventId}"
+          }
+      }
+  ]

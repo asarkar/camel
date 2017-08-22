@@ -5,4 +5,6 @@ gitlab:
   projectConsumerEndpoint: "mock:projectConsumerEndpoint"
   privateToken: U9ceyiYvxKVafHEdeAvD
 eventConsumerEndpoint: "mock:eventConsumerEndpoint"
-auditingEndpoint: "mock:auditingEndpoint"
+eventAuditingEndpoint: "mock:auditingEndpoint"
+updateAuditingEndpoint: ${eventAuditingEndpoint}
+queryAuditingEndpoint: ${eventAuditingEndpoint}

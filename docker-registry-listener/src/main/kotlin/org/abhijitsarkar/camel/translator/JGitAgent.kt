@@ -6,10 +6,12 @@ import org.abhijitsarkar.camel.model.AuditRecord
 import org.abhijitsarkar.camel.model.Event
 import org.abhijitsarkar.camel.model.Project
 import org.abhijitsarkar.camel.util.updateIfNecessary
-import org.apache.camel.Exchange
+import org.apache.camel.Body
+import org.apache.camel.Header
 import org.eclipse.jgit.api.CreateBranchCommand
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ListBranchCommand
+import org.eclipse.jgit.lib.Ref
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder
 import org.eclipse.jgit.transport.JschConfigSessionFactory
 import org.eclipse.jgit.transport.OpenSshConfig
@@ -30,7 +32,7 @@ import java.util.function.BiPredicate
  */
 interface JGitAgent {
     fun clone(project: Project): Path
-    fun update(exchange: Exchange)
+    fun update(path: Path, events: List<Event>): List<AuditRecord>
 }
 
 @Service
@@ -47,7 +49,7 @@ class JGitAgentImpl : JGitAgent {
 
     private val String.isMasterOrCi: Boolean get() = this.matches("^.+(?:master|ci)\$".toRegex())
 
-    override fun clone(project: Project): Path {
+    override fun clone(@Body project: Project): Path {
         var git: Git? = null
 
         try {
@@ -75,17 +77,12 @@ class JGitAgentImpl : JGitAgent {
         defaultFlowStyle = DumperOptions.FlowStyle.BLOCK
     }
 
-    override fun update(exchange: Exchange) {
-        val incoming = exchange.`in`
-        val path = incoming.getBody(Path::class.java)
-
-        // generic type arguments are not reified at runtime,
-        // we can only obtain an object representing a class, not a type
-        val events = incoming.getHeader(Application.DOCKER_REGISTRY_EVENTS_HEADER, List::class.java) as List<Event>
-
+    override fun update(@Body path: Path, @Header(Application.DOCKER_REGISTRY_EVENTS_HEADER) events: List<Event>): List<AuditRecord> {
         val matcher = BiPredicate<Path, BasicFileAttributes> { p, attr ->
             attr.isRegularFile && p.isDockerImages
         }
+
+        val auditRecords = mutableListOf<AuditRecord>()
 
         Files.find(path, 1, matcher)
                 .forEach { p ->
@@ -100,10 +97,10 @@ class JGitAgentImpl : JGitAgent {
                                 .branchList()
                                 .setListMode(ListBranchCommand.ListMode.REMOTE)
                                 .call()
-                                .map { it.name }
-                                .filter { branchName -> branchName.isMasterOrCi }
+                                .map(Ref::getName)
+                                .filter { it.isMasterOrCi }
                                 .forEach { branchName ->
-                                    val localBranchName = branchName.takeLastWhile { it != '/' }
+                                    val localBranchName = branchName.split("origin/")[1]
                                     val branchExists = git
                                             .branchList()
                                             .call()
@@ -117,9 +114,9 @@ class JGitAgentImpl : JGitAgent {
                                             .setStartPoint(branchName)
                                             .call()
 
-                                    val (keysUpdated, dockerImages) = file.updateIfNecessary(events)
+                                    val (imagesUpdated, dockerImages) = file.updateIfNecessary(events)
 
-                                    if (keysUpdated.isNotEmpty()) {
+                                    if (imagesUpdated.isNotEmpty()) {
                                         file.writer().use {
                                             Yaml(dumperOptions).dump(dockerImages, it)
                                         }
@@ -128,10 +125,10 @@ class JGitAgentImpl : JGitAgent {
                                                 .addFilepattern(Application.DOCKER_IMAGES_FILENAME)
                                                 .call()
 
-                                        val eventId = keysUpdated.keys.first()
+                                        val eventId = imagesUpdated.keys.first()
 
                                         git.commit()
-                                                .setMessage("Updated in response to event - $eventId")
+                                                .setMessage("Reference to eventId - $eventId")
                                                 .call()
 
                                         git.push()
@@ -141,21 +138,19 @@ class JGitAgentImpl : JGitAgent {
                                                 eventId,
                                                 path.toFile().name,
                                                 branchName,
-                                                keysUpdated[eventId]
+                                                imagesUpdated[eventId]
                                         )
 
                                         log.info("{}.", auditRecord)
 
-                                        incoming.body = auditRecord
-                                    } else {
-                                        incoming.body = ""
+                                        auditRecords += auditRecord
                                     }
                                 }
                     } finally {
                         repo?.close()
-                        git?.close()
+                        git.close()
                     }
                 }
-
+        return auditRecords
     }
 }
