@@ -13,8 +13,8 @@ complete with an audit trail in the end.
 
 *OR*
 
-3. Manually make a POST request as shown below (a sample [envelope](src/test/resources/envelope.json) is available). The application will return immediately with a list of event ids.
-Making a GET request with an event id returns the audit trail for that event.
+3. Manually make a POST request as shown below (a sample [envelope](src/test/resources/envelope.json) is available). The application will return immediately with a list of event ids and continue in the background.
+Making a GET request with an event id returns the audit trail for that event, provided the request is complete.
 
 
 **POST Request**
