@@ -7,9 +7,8 @@ import org.apache.camel.Exchange
 import org.apache.camel.ExchangePattern
 import org.apache.camel.builder.RouteBuilder
 import org.apache.camel.model.rest.RestBindingMode
+import org.apache.http.HttpStatus
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.http.HttpStatus
-import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
 
 /**
@@ -33,8 +32,8 @@ class EventListenerRouteBuilder : RouterUtil, RouteBuilder() {
                 .post()
                 .type(Envelope::class.java)
                 .outType(List::class.java)
-                .consumes(MediaType.APPLICATION_JSON_VALUE)
-                .produces(MediaType.APPLICATION_JSON_VALUE)
+                .consumes(Application.APPLICATION_JSON_MEDIA_TYPE)
+                .produces(Application.APPLICATION_JSON_MEDIA_TYPE)
 
                 .route()
                 .setExchangePattern(ExchangePattern.InOnly)
@@ -57,12 +56,12 @@ class EventListenerRouteBuilder : RouterUtil, RouteBuilder() {
                     @Suppress("UNCHECKED_CAST")
                     val events = e.`in`.getHeader(Application.DOCKER_REGISTRY_EVENTS_HEADER, List::class.java) as List<Event>
                     e.out.body = events.map(Event::id)
-                    e.out.setHeader(Exchange.HTTP_RESPONSE_CODE, HttpStatus.ACCEPTED.value())
+                    e.out.setHeader(Exchange.HTTP_RESPONSE_CODE, HttpStatus.SC_ACCEPTED)
                 }
                 .endRest()
 
                 .get("/{eventId}")
-                .produces(MediaType.APPLICATION_JSON_VALUE)
+                .produces(Application.APPLICATION_JSON_MEDIA_TYPE)
                 .route()
                 .process { e ->
                     val query = findByIdTemplate

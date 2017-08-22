@@ -15,6 +15,7 @@ class Application {
     companion object {
         const val DOCKER_REGISTRY_EVENTS_HEADER = "DockerRegistryEvents"
         const val DOCKER_IMAGES_FILENAME = "docker-images.yml"
+        const val APPLICATION_JSON_MEDIA_TYPE = "application/json"
     }
 
     @Bean

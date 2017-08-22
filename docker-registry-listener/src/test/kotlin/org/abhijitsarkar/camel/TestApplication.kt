@@ -1,13 +1,16 @@
 package org.abhijitsarkar.camel
 
+import com.fasterxml.jackson.core.type.TypeReference
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.KotlinModule
+import com.github.kittinunf.fuel.httpGet
+import com.github.kittinunf.fuel.httpPost
 import org.abhijitsarkar.camel.model.Actor
 import org.abhijitsarkar.camel.model.Envelope
 import org.abhijitsarkar.camel.model.Event
 import org.abhijitsarkar.camel.model.Target
-import org.springframework.core.ParameterizedTypeReference
-import org.springframework.http.HttpEntity
-import org.springframework.http.HttpMethod
-import org.springframework.web.client.RestTemplate
+import org.apache.http.HttpHeaders
+import org.springframework.boot.test.web.client.TestRestTemplate
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Random
@@ -36,16 +39,20 @@ fun main(args: Array<String>) {
 
     println("Envelope: $envelope")
 
-    val restTemplate = RestTemplate()
-    val requestEntity = HttpEntity<Envelope>(envelope, null)
-    val postResponse = restTemplate.exchange(
-            "http://localhost:8080/events",
-            HttpMethod.POST,
-            requestEntity,
-            object : ParameterizedTypeReference<List<String>>() {}
-    )
-    println("POST status: ${postResponse.statusCode}")
-    println("POST body: ${postResponse.body}")
+    val mapper = ObjectMapper().registerModule(KotlinModule())
+    val (_, postResponse, _) = "http://localhost:8080/events"
+            .httpPost()
+            .header(
+                    HttpHeaders.CONTENT_TYPE to Application.APPLICATION_JSON_MEDIA_TYPE,
+                    HttpHeaders.ACCEPT to Application.APPLICATION_JSON_MEDIA_TYPE
+            )
+            .body(mapper.writeValueAsString(envelope))
+            .response()
+
+    val events = mapper.readValue<List<String>>(postResponse.data, object : TypeReference<List<String>>() {})
+
+    println("POST status: ${postResponse.httpStatusCode}")
+    println("POST body: $events")
 
     for (i in 10 downTo 1) {
         if (i > 0) {
@@ -54,9 +61,8 @@ fun main(args: Array<String>) {
         }
     }
 
-    val getResponse = restTemplate.getForEntity(
-            "http://localhost:8080/events/${postResponse.body.first()}",
-            String::class.java)
-    println("GET status: ${getResponse.statusCode}")
-    println("GET body: ${getResponse.body}")
+    var (_, getResponse, result) = "http://localhost:8080/events/${events.first()}".httpGet().responseString()
+
+    println("GET status: ${getResponse.httpStatusCode}")
+    println("GET body: ${result.get()}")
 }

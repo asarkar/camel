@@ -1,5 +1,9 @@
 package org.abhijitsarkar.camel.router
 
+import com.fasterxml.jackson.core.type.TypeReference
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.KotlinModule
+import com.github.kittinunf.fuel.httpPost
 import org.abhijitsarkar.camel.Application
 import org.abhijitsarkar.camel.model.Actor
 import org.abhijitsarkar.camel.model.Envelope
@@ -10,15 +14,12 @@ import org.apache.camel.Predicate
 import org.apache.camel.component.mock.MockEndpoint
 import org.apache.camel.test.spring.CamelSpringBootRunner
 import org.apache.camel.test.spring.DisableJmx
+import org.apache.http.HttpHeaders
+import org.apache.http.HttpStatus
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.test.web.client.TestRestTemplate
-import org.springframework.http.HttpEntity
-import org.springframework.http.HttpMethod
-import org.springframework.http.HttpStatus
 import org.springframework.test.context.ActiveProfiles
-import org.springframework.web.client.RestTemplate
 
 /**
  * @author Abhijit Sarkar
@@ -33,8 +34,6 @@ class EventListenerRouteBuilderTest {
     @EndpointInject(uri = "mock:eventConsumerEndpoint")
     lateinit var eventConsumerEndpoint: MockEndpoint
 
-    val restTemplate = TestRestTemplate(RestTemplate())
-
     @Test
     fun testEventListenerRoute() {
         val data = listOf(
@@ -43,6 +42,7 @@ class EventListenerRouteBuilderTest {
                 Triple("pull", "latest", 0),
                 Triple("pull", "whatever", 0)
         )
+        val mapper = ObjectMapper().registerModule(KotlinModule())
 
         data.forEach { (action, tag, messageCount) ->
             val envelope = Envelope(listOf(Event(
@@ -62,15 +62,19 @@ class EventListenerRouteBuilderTest {
                 eventConsumerEndpoint.expectedMessageCount(messageCount)
             }
 
-            val requestEntity = HttpEntity<Envelope>(envelope, null)
-            val postResponse = restTemplate.exchange(
-                    "http://localhost:8080/events",
-                    HttpMethod.POST,
-                    requestEntity,
-                    String::class.java
-            )
-            assert(postResponse.body == """["1"]""", { "Expected body to contain event ids." })
-            assert(postResponse.statusCode == HttpStatus.ACCEPTED, { "Expected status code ACCEPTED." })
+            val (_, response, _) = "http://localhost:8080/events"
+                    .httpPost()
+                    .header(
+                            HttpHeaders.CONTENT_TYPE to Application.APPLICATION_JSON_MEDIA_TYPE,
+                            HttpHeaders.ACCEPT to Application.APPLICATION_JSON_MEDIA_TYPE
+                    )
+                    .body(mapper.writeValueAsString(envelope))
+                    .response()
+
+            val events = mapper.readValue<List<String>>(response.data, object : TypeReference<List<String>>() {})
+
+            assert(events.first() == "1", { "Expected body to contain event ids." })
+            assert(response.httpStatusCode == HttpStatus.SC_ACCEPTED, { "Expected status code: ACCEPTED." })
 
             eventConsumerEndpoint.assertIsSatisfied(2000L)
             eventConsumerEndpoint.reset()

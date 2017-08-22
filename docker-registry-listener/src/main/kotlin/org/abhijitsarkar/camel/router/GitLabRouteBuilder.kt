@@ -1,15 +1,14 @@
 package org.abhijitsarkar.camel.router
 
 import com.fasterxml.jackson.module.kotlin.KotlinModule
+import org.abhijitsarkar.camel.Application
 import org.abhijitsarkar.camel.model.Group
 import org.abhijitsarkar.camel.translator.JGitAgent
 import org.apache.camel.Exchange
 import org.apache.camel.builder.RouteBuilder
 import org.apache.camel.model.dataformat.JsonDataFormat
 import org.apache.camel.model.dataformat.JsonLibrary
-import org.springframework.http.HttpHeaders
-import org.springframework.http.HttpMethod
-import org.springframework.http.MediaType
+import org.apache.http.HttpHeaders
 import org.springframework.stereotype.Component
 
 
@@ -30,9 +29,9 @@ class GitLabRouteBuilder(val jGitAgent: JGitAgent) : RouterUtil, RouteBuilder() 
                 .id("groupConsumerRoute")
                 .marshal()
                 .json(JsonLibrary.Jackson)
-                .setHeader(HttpHeaders.ACCEPT, constant(MediaType.APPLICATION_JSON_VALUE))
+                .setHeader(HttpHeaders.ACCEPT, constant(Application.APPLICATION_JSON_MEDIA_TYPE))
                 .setHeader("PRIVATE-TOKEN", constant("{{gitlab.privateToken:N/A}}"))
-                .setHeader(Exchange.HTTP_METHOD, constant(HttpMethod.GET.name))
+                .setHeader(Exchange.HTTP_METHOD, constant("GET"))
                 .to("https4://{{gitlab.baseUri:http://locahost:8080}}/api/v4/groups/" +
                         "{{gitlab.groupName::N/A}}?bridgeEndpoint=true")
                 .unmarshal(dataFormat)
