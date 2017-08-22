@@ -12,6 +12,7 @@ import org.eclipse.jgit.api.CreateBranchCommand
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ListBranchCommand
 import org.eclipse.jgit.lib.Ref
+import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder
 import org.eclipse.jgit.transport.JschConfigSessionFactory
 import org.eclipse.jgit.transport.OpenSshConfig
@@ -47,31 +48,41 @@ class JGitAgentImpl : JGitAgent {
 
     private val log = LoggerFactory.getLogger(JGitAgent::class.java)
 
-    private val String.isMasterOrCi: Boolean get() = this.matches("^.+(?:master|ci)\$".toRegex())
-
     override fun clone(@Body project: Project): Path {
-        var git: Git? = null
+        return Files.createTempDirectory(null).toFile()
+                .apply { deleteOnExit() }
+                .let { File(it, project.name) }
+                .let { projectDir ->
+                    log.info("Cloning repo: {} to: {}.", project.sshUrl, projectDir.absolutePath)
 
-        try {
-            val projectDir = Files.createTempDirectory(null).toFile()
-                    .apply { deleteOnExit() }
-                    .let { File(it, project.name) }
-
-            log.info("Cloning repo: {} to: {}.", project.sshUrl, projectDir.absolutePath)
-
-            git = Git.cloneRepository()
-                    .setURI(project.sshUrl)
-                    .setDirectory(projectDir)
-                    .setCloneAllBranches(true)
-                    .call()
-
-            return projectDir.toPath()
-        } finally {
-            git?.close()
-        }
+                    Git.cloneRepository()
+                            .setURI(project.sshUrl)
+                            .setDirectory(projectDir)
+                            .setCloneAllBranches(true)
+                            .call().use {
+                        projectDir.toPath()
+                    }
+                }
     }
 
     private val Path.isDockerImages: Boolean get() = this.toFile().name == Application.DOCKER_IMAGES_FILENAME
+
+    private fun Path.toRepo(): Repository = FileRepositoryBuilder()
+            .setWorkTree(this.toFile())
+            .build()
+
+    private val Git.remoteBranches: List<Ref>
+        get() = this
+                .branchList()
+                .setListMode(ListBranchCommand.ListMode.REMOTE)
+                .call()
+
+    private val Git.localBranches: List<Ref>
+        get() = this
+                .branchList()
+                .call()
+
+    private val String.isMasterOrCi: Boolean get() = this.matches("^.+(?:master|ci)\$".toRegex())
 
     val dumperOptions = DumperOptions().apply {
         defaultFlowStyle = DumperOptions.FlowStyle.BLOCK
@@ -87,69 +98,59 @@ class JGitAgentImpl : JGitAgent {
         Files.find(path, 1, matcher)
                 .forEach { p ->
                     val file = p.toFile()
-                    val repo = FileRepositoryBuilder()
-                            .setWorkTree(path.toFile())
-                            .build()
-                    val git = Git(repo)
+                    path.toRepo()
+                            .use { repo ->
+                                Git(repo).use { git ->
+                                    git.remoteBranches
+                                            .map(Ref::getName)
+                                            .filter { it.isMasterOrCi }
+                                            .forEach { branchName ->
+                                                val localBranchName = branchName.split("origin/")[1]
+                                                val branchExists = git
+                                                        .localBranches
+                                                        .map(Ref::getName)
+                                                        .any { it.endsWith(localBranchName) }
 
-                    try {
-                        git
-                                .branchList()
-                                .setListMode(ListBranchCommand.ListMode.REMOTE)
-                                .call()
-                                .map(Ref::getName)
-                                .filter { it.isMasterOrCi }
-                                .forEach { branchName ->
-                                    val localBranchName = branchName.split("origin/")[1]
-                                    val branchExists = git
-                                            .branchList()
-                                            .call()
-                                            .map { it.name }
-                                            .any { it.endsWith(localBranchName) }
+                                                git.checkout()
+                                                        .setCreateBranch(!branchExists)
+                                                        .setName(localBranchName)
+                                                        .setUpstreamMode(CreateBranchCommand.SetupUpstreamMode.TRACK)
+                                                        .setStartPoint(branchName)
+                                                        .call()
 
-                                    git.checkout()
-                                            .setCreateBranch(!branchExists)
-                                            .setName(localBranchName)
-                                            .setUpstreamMode(CreateBranchCommand.SetupUpstreamMode.TRACK)
-                                            .setStartPoint(branchName)
-                                            .call()
+                                                val (imagesUpdated, dockerImages) = file.updateIfNecessary(events)
 
-                                    val (imagesUpdated, dockerImages) = file.updateIfNecessary(events)
+                                                if (imagesUpdated.isNotEmpty()) {
+                                                    file.writer().use {
+                                                        Yaml(dumperOptions).dump(dockerImages, it)
+                                                    }
 
-                                    if (imagesUpdated.isNotEmpty()) {
-                                        file.writer().use {
-                                            Yaml(dumperOptions).dump(dockerImages, it)
-                                        }
+                                                    git.add()
+                                                            .addFilepattern(Application.DOCKER_IMAGES_FILENAME)
+                                                            .call()
 
-                                        git.add()
-                                                .addFilepattern(Application.DOCKER_IMAGES_FILENAME)
-                                                .call()
+                                                    val eventId = imagesUpdated.keys.first()
 
-                                        val eventId = imagesUpdated.keys.first()
+                                                    git.commit()
+                                                            .setMessage("Reference to eventId - $eventId")
+                                                            .call()
 
-                                        git.commit()
-                                                .setMessage("Reference to eventId - $eventId")
-                                                .call()
+                                                    git.push()
+                                                            .call()
 
-                                        git.push()
-                                                .call()
-
-                                        val auditRecord = AuditRecord(
-                                                eventId,
-                                                path.toFile().name,
-                                                branchName,
-                                                imagesUpdated[eventId]
-                                        )
-
-                                        log.info("{}.", auditRecord)
-
-                                        auditRecords += auditRecord
-                                    }
+                                                    auditRecords += AuditRecord(
+                                                            eventId,
+                                                            path.toFile().name,
+                                                            branchName,
+                                                            imagesUpdated[eventId]
+                                                    )
+                                                            .also {
+                                                                log.info("{}.", it)
+                                                            }
+                                                }
+                                            }
                                 }
-                    } finally {
-                        repo?.close()
-                        git.close()
-                    }
+                            }
                 }
         return auditRecords
     }
