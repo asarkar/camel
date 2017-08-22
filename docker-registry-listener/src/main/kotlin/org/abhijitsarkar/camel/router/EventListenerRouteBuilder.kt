@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component
  * @author Abhijit Sarkar
  */
 @Component
-class EventListenerRouteBuilder : RouteBuilder() {
+class EventListenerRouteBuilder : RouterUtil, RouteBuilder() {
     @Value("\${findByIdTemplate:}")
     lateinit var findByIdTemplate: String
 
@@ -38,8 +38,7 @@ class EventListenerRouteBuilder : RouteBuilder() {
 
                 .route()
                 .setExchangePattern(ExchangePattern.InOnly)
-                .to("log:${javaClass.name}?level=DEBUG&showException=true&showHeaders=true&showOut=true" +
-                        "&showStackTrace=true&marker=eventListenerRoute")
+                .to("log:${super.logUri(javaClass)}")
                 .setHeader(Application.DOCKER_REGISTRY_EVENTS_HEADER, simple("\${body.events}"))
 
                 .choice()
@@ -67,14 +66,13 @@ class EventListenerRouteBuilder : RouteBuilder() {
                 .route()
                 .process { e ->
                     val query = findByIdTemplate
-                            .replace("\n", " ")
+                            .replace("[\\s\\n]+".toRegex(), " ")
                             .replace("{eventId}", "${e.`in`.getHeader("eventId").toString()}")
                     e.`in`.body = query
                 }
                 .to("{{queryAuditingEndpoint:log:foo?level=OFF}}")
 
-        val numCores = Runtime.getRuntime().availableProcessors()
-        from("seda:eventAuditingEndpoint?waitForTaskToComplete=Never&purgeWhenStopping=true&concurrentConsumers=$numCores")
+        from("seda:eventAuditingEndpoint?$sedaOptions")
                 .to("{{eventAuditingEndpoint:log:foo?level=OFF}}")
     }
 }

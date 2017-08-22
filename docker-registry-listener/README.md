@@ -1,6 +1,11 @@
 **POST Request**
 ```
-curl -v -H "Content-Type: application/json" -d @envelope.json "http://localhost:8080/events"
+curl -v -H "Accept: application/json" -H "Content-Type: application/json" -d @envelope.json "http://localhost:8080/events"
+```
+
+**GET Request**
+```
+curl -v -H "Accept: application/json" "http://localhost:8080/events/<eventId>"
 ```
 
 MongoDB Operations

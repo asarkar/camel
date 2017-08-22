@@ -17,16 +17,14 @@ import org.springframework.stereotype.Component
  * @author Abhijit Sarkar
  */
 @Component
-class GitLabRouteBuilder(val jGitAgent: JGitAgent) : RouteBuilder() {
+class GitLabRouteBuilder(val jGitAgent: JGitAgent) : RouterUtil, RouteBuilder() {
     override fun configure() {
         val dataFormat = JsonDataFormat(JsonLibrary.Jackson).apply {
             moduleClassNames = KotlinModule::class.java.name
             unmarshalType = Group::class.java
         }
 
-        val logUri = "log:${javaClass.name}?level=DEBUG&showException=true&showHeaders=true&showOut=true&showStackTrace=true"
-        val numCores = Runtime.getRuntime().availableProcessors()
-        val sedaOptions = "waitForTaskToComplete=Never&purgeWhenStopping=true&concurrentConsumers=$numCores"
+        val logUri = super.logUri(javaClass)
 
         from("seda:eventConsumerEndpoint?$sedaOptions")
                 .id("groupConsumerRoute")
@@ -35,11 +33,13 @@ class GitLabRouteBuilder(val jGitAgent: JGitAgent) : RouteBuilder() {
                 .setHeader(HttpHeaders.ACCEPT, constant(MediaType.APPLICATION_JSON_VALUE))
                 .setHeader("PRIVATE-TOKEN", constant("{{gitlab.privateToken:N/A}}"))
                 .setHeader(Exchange.HTTP_METHOD, constant(HttpMethod.GET.name))
-                .to("https4://{{gitlab.baseUri:http://locahost:8080}}/api/v4/groups/{{gitlab.groupName::N/A}}?bridgeEndpoint=true")
+                .to("https4://{{gitlab.baseUri:http://locahost:8080}}/api/v4/groups/" +
+                        "{{gitlab.groupName::N/A}}?bridgeEndpoint=true")
                 .unmarshal(dataFormat)
                 .multicast()
                 .parallelProcessing()
-                .to("$logUri&marker=groupConsumerRoute", "{{gitlab.groupConsumerEndpoint:log:foo?level=OFF}}")
+                .to("$logUri&marker=groupConsumerRoute",
+                        "{{gitlab.groupConsumerEndpoint:log:foo?level=OFF}}")
 
         from("direct:groupConsumerEndpoint")
                 .id("projectConsumerRoute")
@@ -62,7 +62,8 @@ class GitLabRouteBuilder(val jGitAgent: JGitAgent) : RouteBuilder() {
 //                })
                 .multicast()
                 .parallelProcessing()
-                .to("$logUri&marker=projectConsumerRoute", "{{gitlab.projectConsumerEndpoint:log:foo?level=OFF}}")
+                .to("$logUri&marker=projectConsumerRoute",
+                        "{{gitlab.projectConsumerEndpoint:log:foo?level=OFF}}")
 
         from("direct:projectConsumerEndpoint")
                 .id("updateRoute")
